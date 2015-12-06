@@ -24,6 +24,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "ipconstprop"
@@ -48,14 +49,18 @@ namespace {
 }
 
 char IPCP::ID = 0;
-INITIALIZE_PASS(IPCP, "ipconstprop",
-                "Interprocedural constant propagation", false, false)
+
+//INITIALIZE_PASS(IPCP, "ipconstprop",
+//               "Interprocedural constant propagation", false, false)
+
+static RegisterPass<IPCP> X("ipco","Interprocedural constant prop", false, false);
 
 ModulePass *llvm::createIPConstantPropagationPass() { return new IPCP(); }
 
 bool IPCP::runOnModule(Module &M) {
   bool Changed = false;
   bool LocalChange = true;
+  errs()<<"Interprocedure Consant Propagation  Pass running... " << '\n';
 
   // FIXME: instead of using smart algorithms, we just iterate until we stop
   // making changes.
