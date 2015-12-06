@@ -27,7 +27,7 @@
 #include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
-#define DEBUG_TYPE "ipconstprop"
+#define DEBUG_TYPE "ipco"
 
 STATISTIC(NumArgumentsProped, "Number of args turned into constants");
 STATISTIC(NumReturnValProped, "Number of return values turned into constants");
