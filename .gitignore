@@ -1,0 +1,12 @@
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+ipco/CMakeFiles/
+ipco/Makefile
+ipco/cmake_install.cmake
+ipco/test/test
+ipco/test/test.bc
+ipco/test/test.s
+ipco/test/test.slicm.bc
+lib/
