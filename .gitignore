@@ -8,5 +8,5 @@ ipco/cmake_install.cmake
 ipco/test/test
 ipco/test/test.bc
 ipco/test/test.s
-ipco/test/test.slicm.bc
+ipco/test/test.ipco.bc
 lib/
