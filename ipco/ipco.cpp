@@ -25,6 +25,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
+
 using namespace llvm;
 
 #define DEBUG_TYPE "ipco"
@@ -53,7 +54,7 @@ char IPCP::ID = 0;
 //INITIALIZE_PASS(IPCP, "ipconstprop",
 //               "Interprocedural constant propagation", false, false)
 
-static RegisterPass<IPCP> X("ipco","Interprocedural constant prop", false, false);
+static RegisterPass<IPCP> X("ipco","EECS 583 Interprocedural constant prop", false, false);
 
 ModulePass *llvm::createIPConstantPropagationPass() { return new IPCP(); }
 
@@ -67,11 +68,27 @@ bool IPCP::runOnModule(Module &M) {
   while (LocalChange) {
     LocalChange = false;
     for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+      // isDeclaration(): If the function is not in the current function is not in the current 
+      // translation unit. 
       if (!I->isDeclaration()) {
+
+  errs() << "isDeclaration" << '\n';
         // Delete any klingons.
+        // removeDeadConstantUsers(): I think it checks for livness with the constants
+        // constants and its uses
         I->removeDeadConstantUsers();
-        if (I->hasLocalLinkage())
+
+        // hasLocalLinkage(): it determines what kind of linkage, Linkage in llvm are enums
+        // Linkage(From wikipedia): describes how names can or can not refer to the same 
+        // entity throughout the whole program or single translation unit.Like how static variables 
+        // can be reference in different files. Linkage is basically a mechanism to allow var/func/etc
+        // to be used and referenced in other source files. I think. 
+       // errs() << "Has local linkage " << I->hasLocalLinkage() <<'\n';
+        if (I->hasLocalLinkage()){
+          
+          errs() << "Has local linkgae" << I->hasLocalLinkage() <<'\n';
           LocalChange |= PropagateConstantsIntoArguments(*I);
+        }
         Changed |= PropagateConstantReturn(*I);
       }
     Changed |= LocalChange;
@@ -84,25 +101,59 @@ bool IPCP::runOnModule(Module &M) {
 /// constant in for an argument, propagate that constant in as the argument.
 ///
 bool IPCP::PropagateConstantsIntoArguments(Function &F) {
+  errs() << "I am here" << '\n';
+  // From Docs: Every value has a "use list"(UseList) that keeps track of which other Values are
+  // using this Value. 
+  // llvm::Value::use_empty(): returns true if there are no users of this function(Value)
   if (F.arg_empty() || F.use_empty()) return false; // No arguments? Early exit.
 
   // For each argument, keep track of its constant value and whether it is a
   // constant or not.  The bool is driven to true when found to be non-constant.
+
+  // SmallVector Class: This is a 'vector' (really, a variable-sized array), optimized for the case when the array is small.
+  // It contains some number of elements in-place, which allows it to avoid heap allocation when the actual 
+  // number of elements is below that threshold. 
+  // This allows normal "small" cases to be fast without losing generality for large inputs.
   SmallVector<std::pair<Constant*, bool>, 16> ArgumentConstants;
   ArgumentConstants.resize(F.arg_size());
 
   unsigned NumNonconstant = 0;
+  
+  // Def use chain for finding all of the functions that use func F
+  // The list of all Users of a particular Value is called a def-use chain. 
+  // For example, let’s say we have a Function* named F to a particular function foo. 
+  // Finding all of the instructions that use foo is as simple as iterating over the def-use chain of F
+
+  // A Use represents the edge between a Value definition and its users. 
   for (Use &U : F.uses()) {
+    
+    // Returns the User that contains this Use.
+    // For an instruction operand, for example, this will return the instruction. 
     User *UR = U.getUser();
+    errs() << "Func: " << F << '\n';
+    errs() << "User: " << *UR << '\n';
+    errs() << "Use: " << *U << '\n';
+
+    // isa<>:
+    // The isa<> operator works exactly like the Java “instanceof” operator. 
+    // It returns true or false depending on whether a reference or pointer points to an instance of the specified class. 
+    // This can be very useful for constraint checking of various sorts.
+
     // Ignore blockaddress uses.
     if (isa<BlockAddress>(UR)) continue;
     
     // Used by a non-instruction, or not the callee of a function, do not
     // transform.
-    if (!isa<CallInst>(UR) && !isa<InvokeInst>(UR))
+    if (!isa<CallInst>(UR) && !isa<InvokeInst>(UR)){
+      errs() << "The User is not a CallInst or InvokeInst" << '\n';
       return false;
-    
+    }
+
+    // llvm::CallSite: which is a handy wrapper class for code that
+    // wants to treat Call and Invoke instructions in a generic way.    
     CallSite CS(cast<Instruction>(UR));
+
+    // Checks if the the Use U(aka function) is a Callee
     if (!CS.isCallee(&U))
       return false;
 
@@ -136,6 +187,7 @@ bool IPCP::PropagateConstantsIntoArguments(Function &F) {
 
   // If we got to this point, there is a constant argument!
   assert(NumNonconstant != ArgumentConstants.size());
+    errs() << "Yay something happen" << '\n';
   bool MadeChange = false;
   Function::arg_iterator AI = F.arg_begin();
   for (unsigned i = 0, e = ArgumentConstants.size(); i != e; ++i, ++AI) {
