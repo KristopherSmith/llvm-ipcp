@@ -83,7 +83,6 @@ bool IPCP::runOnModule(Module &M) {
         // entity throughout the whole program or single translation unit.Like how static variables 
         // can be reference in different files. Linkage is basically a mechanism to allow var/func/etc
         // to be used and referenced in other source files. I think. 
-       // errs() << "Has local linkage " << I->hasLocalLinkage() <<'\n';
         if (I->hasLocalLinkage()){
           
           errs() << "Has local linkgae" << I->hasLocalLinkage() <<'\n';
@@ -130,10 +129,15 @@ bool IPCP::PropagateConstantsIntoArguments(Function &F) {
     // Returns the User that contains this Use.
     // For an instruction operand, for example, this will return the instruction. 
     User *UR = U.getUser();
-    errs() << "Func: " << F << '\n';
+/*    errs() << "Func: " << F.getName() << '\n';
+    if (Instruction *Inst = dyn_cast<Instruction>(UR)) {
+      errs() << "F is used in instruction:\n";
+      errs() << *Inst << "\n";
+    }
+ 
     errs() << "User: " << *UR << '\n';
     errs() << "Use: " << *U << '\n';
-
+*/
     // isa<>:
     // The isa<> operator works exactly like the Java “instanceof” operator. 
     // It returns true or false depending on whether a reference or pointer points to an instance of the specified class. 
@@ -149,18 +153,27 @@ bool IPCP::PropagateConstantsIntoArguments(Function &F) {
       return false;
     }
 
-    // llvm::CallSite: which is a handy wrapper class for code that
+    // llvm::CallSite: which is a handy wrapper class for code/instructions that
     // wants to treat Call and Invoke instructions in a generic way.    
     CallSite CS(cast<Instruction>(UR));
 
-    // Checks if the the Use U(aka function) is a Callee
-    if (!CS.isCallee(&U))
+    // Checks if the the Use U (the edge between the function and its user) is a Callee.
+    // Basically, if the User is a callee function if not then return. 
+    if (!CS.isCallee(&U)){
+      errs() << "Not a call site" << '\n';
       return false;
+    }
 
     // Check out all of the potentially constant arguments.  Note that we don't
     // inspect varargs here.
+
+    // For the call site, grab an iterater for its arguments
     CallSite::arg_iterator AI = CS.arg_begin();
+  
+    // For function, grab an iterator for its arguments
     Function::arg_iterator Arg = F.arg_begin();
+
+    // Loop through the struct that contains the constants (potential) 
     for (unsigned i = 0, e = ArgumentConstants.size(); i != e;
          ++i, ++AI, ++Arg) {
       
@@ -180,6 +193,8 @@ bool IPCP::PropagateConstantsIntoArguments(Function &F) {
         // give up on this function.
         if (++NumNonconstant == ArgumentConstants.size())
           return false;
+        // false == constant
+        // true == not constant
         ArgumentConstants[i].second = true;
       }
     }
@@ -189,15 +204,28 @@ bool IPCP::PropagateConstantsIntoArguments(Function &F) {
   assert(NumNonconstant != ArgumentConstants.size());
     errs() << "Yay something happen" << '\n';
   bool MadeChange = false;
+  
+  // Loop through each of the function's args
   Function::arg_iterator AI = F.arg_begin();
   for (unsigned i = 0, e = ArgumentConstants.size(); i != e; ++i, ++AI) {
-    // Do we have a constant argument?
+    //  Do we have a constant argument?
+    
+    //  If the argument if not a constant, or
+    //  if the argument has no uses(aka nobody uses it)  or 
+    //  If the argument has the inalloca attribute or
+    //  if the argument has the byval attribute AND the Function doesn't read 
+    //  from memory continue to the next argument
     if (ArgumentConstants[i].second || AI->use_empty() ||
         AI->hasInAllocaAttr() || (AI->hasByValAttr() && !F.onlyReadsMemory()))
       continue;
   
+    //  Grab the value of the Argument
     Value *V = ArgumentConstants[i].first;
+
+    // If it is null then do something
     if (!V) V = UndefValue::get(AI->getType());
+
+    //Here is the interprocedural constant prop happens 
     AI->replaceAllUsesWith(V);
     ++NumArgumentsProped;
     MadeChange = true;
